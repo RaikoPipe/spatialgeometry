@@ -8,13 +8,10 @@ from io import StringIO
 from spatialmath.base import r2q
 from spatialmath.base.argcheck import getvector
 from spatialmath import SE3
-from spatialgeometry.geom import Shape
-from spatialgeometry.geom.Shape import update
+from spatialgeometry import Shape
 import os
 import copy
 from warnings import warn
-
-from typing import Tuple, Union
 
 p = None
 _pyb = None
@@ -43,17 +40,17 @@ def _import_pyb():
         except Exception:  # pragma nocover
             p = importlib.import_module("pybullet")
 
-        cid = p.connect(p.SHARED_MEMORY)
+        cid = 1 #p.connect(p.DIRECT)
         if cid < 0:
             p.connect(p.DIRECT)
         _pyb = True
     except ImportError:  # pragma nocover
         _pyb = False
 
-
 class CollisionShape(Shape):
     def __init__(self, collision=True, **kwargs):
         self.co = None
+        self.client_id = 1
         self.pinit = False
         super().__init__(**kwargs)
         self._collision = collision
@@ -73,11 +70,13 @@ class CollisionShape(Shape):
 
     def _update_pyb(self):
         if _pyb and self.co is not None:
-            p.resetBasePositionAndOrientation(self.co, self._wT[:3, 3], self._wq)  # type: ignore
+            p.resetBasePositionAndOrientation(self.co, self._wT[:3, 3], self._wq, 
+                                              physicsClientId=self.client_id)  # type: ignore
 
     def _s_init_pob(self, col):
         self.co = p.createMultiBody(  # type: ignore
-            baseMass=1, baseInertialFramePosition=[0, 0, 0], baseCollisionShapeIndex=col
+            baseMass=1, baseInertialFramePosition=[0, 0, 0], baseCollisionShapeIndex=col,
+            physicsClientId=self.client_id
         )
         self.pinit = True
 
@@ -88,9 +87,22 @@ class CollisionShape(Shape):
         if _pyb is None:
             _import_pyb()
 
-    def closest_point(
-        self, shape: "CollisionShape", inf_dist: float = 1.0
-    ) -> Tuple[Union[float, None], Union[np.ndarray, None], Union[np.ndarray, None]]:
+    def init_pybullet(self):
+        self._check_pyb()
+
+        if not _pyb:  # pragma nocover
+            raise ImportError(
+                "The package PyBullet is required for collision "
+                "functionality. Install using pip install pybullet"
+            )
+
+        if not self.pinit:
+            self._init_pob()
+            self._update_pyb()
+
+        self._update_pyb()
+
+    def closest_point(self, shape, inf_dist=1.0):
         """
         closest_point(shape, inf_dist) returns the minimum euclidean
         distance between self and shape, provided it is less than inf_dist.
@@ -127,7 +139,9 @@ class CollisionShape(Shape):
             shape._init_pob()
             shape._update_pyb()
 
-        ret = p.getClosestPoints(self.co, shape.co, inf_dist)  # type: ignore
+        ret = p.getClosestPoints(self.co, shape.co, inf_dist, physicsClientId=self.client_id)  # type: ignore
+        if ret:
+            pass
 
         try:
             return ret[0][8], np.array(ret[0][5]), np.array(ret[0][6])
@@ -195,7 +209,8 @@ class Mesh(CollisionShape):
         if (file_extension == ".stl" or file_extension == ".STL") and self.collision:
 
             col = p.createCollisionShape(  # type: ignore
-                shapeType=p.GEOM_MESH, fileName=self.filename, meshScale=self.scale  # type: ignore
+                shapeType=p.GEOM_MESH, fileName=self.filename, meshScale=self.scale,
+                physicsClientId=self.client_id # type: ignore
             )
 
             super()._s_init_pob(col)
@@ -210,7 +225,6 @@ class Mesh(CollisionShape):
         return self._scale
 
     @scale.setter
-    @update
     def scale(self, value):
         if value is not None:
             value = getvector(value, 3)
@@ -223,7 +237,6 @@ class Mesh(CollisionShape):
         return self._filename
 
     @filename.setter
-    @update
     def filename(self, value):
         self._filename = value
 
@@ -264,7 +277,8 @@ class Cylinder(CollisionShape):
     def _init_pob(self):
         if self.collision:
             col = p.createCollisionShape(  # type: ignore
-                shapeType=p.GEOM_CYLINDER, radius=self.radius, height=self.length  # type: ignore
+                shapeType=p.GEOM_CYLINDER, radius=self.radius, height=self.length,
+                physicsClientId=self.client_id # type: ignore
             )
 
             super()._s_init_pob(col)
@@ -279,7 +293,6 @@ class Cylinder(CollisionShape):
         return self._radius
 
     @radius.setter
-    @update
     def radius(self, value):
         self._radius = float(value)
 
@@ -288,7 +301,6 @@ class Cylinder(CollisionShape):
         return self._length
 
     @length.setter
-    @update
     def length(self, value):
         self._length = float(value)
 
@@ -325,7 +337,7 @@ class Sphere(CollisionShape):
 
     def _init_pob(self):
         if self.collision:
-            col = p.createCollisionShape(shapeType=p.GEOM_SPHERE, radius=self.radius)  # type: ignore
+            col = p.createCollisionShape(shapeType=p.GEOM_SPHERE, radius=self.radius, physicsClientId=self.client_id)  # type: ignore
 
             super()._s_init_pob(col)
         else:
@@ -339,7 +351,6 @@ class Sphere(CollisionShape):
         return self._radius
 
     @radius.setter
-    @update
     def radius(self, value):
         self._radius = float(value)
 
@@ -377,7 +388,8 @@ class Cuboid(CollisionShape):
 
         if self.collision:
             col = p.createCollisionShape(  # type: ignore
-                shapeType=p.GEOM_BOX, halfExtents=np.array(self.scale) / 2  # type: ignore
+                shapeType=p.GEOM_BOX, halfExtents=np.array(self.scale) / 2, physicsClientId=self.client_id  # type: ignore
+            
             )
 
             super()._s_init_pob(col)
@@ -392,7 +404,6 @@ class Cuboid(CollisionShape):
         return self._scale
 
     @scale.setter
-    @update
     def scale(self, value):
         if value is not None:
             value = getvector(value, 3)

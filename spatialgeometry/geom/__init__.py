@@ -1,7 +1,7 @@
-from spatialgeometry.geom.SceneNode import SceneNode
-from spatialgeometry.geom.SceneGroup import SceneGroup
-from spatialgeometry.geom.Shape import Shape, Axes, Arrow
-from spatialgeometry.geom.CollisionShape import (
+from spatialgeometry.SceneNode import SceneNode
+from spatialgeometry.SceneGroup import SceneGroup
+from spatialgeometry.Shape import Shape, Axes, Arrow
+from spatialgeometry.CollisionShape import (
     CollisionShape,
     Mesh,
     Cylinder,
@@ -9,7 +9,6 @@ from spatialgeometry.geom.CollisionShape import (
     Box,
     Sphere,
 )
-
 
 __all__ = [
     "Shape",
