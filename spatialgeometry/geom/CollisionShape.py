@@ -8,7 +8,8 @@ from io import StringIO
 from spatialmath.base import r2q
 from spatialmath.base.argcheck import getvector
 from spatialmath import SE3
-from spatialgeometry import Shape
+from spatialgeometry.geom import Shape
+from spatialgeometry.geom.Shape import update
 import os
 import copy
 from warnings import warn
@@ -40,12 +41,13 @@ def _import_pyb():
         except Exception:  # pragma nocover
             p = importlib.import_module("pybullet")
 
-        cid = 1 #p.connect(p.DIRECT)
+        cid = p.connect(p.SHARED_MEMORY)
         if cid < 0:
             p.connect(p.DIRECT)
         _pyb = True
     except ImportError:  # pragma nocover
         _pyb = False
+
 
 class CollisionShape(Shape):
     def __init__(self, collision=True, **kwargs):
@@ -70,7 +72,7 @@ class CollisionShape(Shape):
 
     def _update_pyb(self):
         if _pyb and self.co is not None:
-            p.resetBasePositionAndOrientation(self.co, self._wT[:3, 3], self._wq, 
+            p.resetBasePositionAndOrientation(self.co, self._wT[:3, 3], self._wq,
                                               physicsClientId=self.client_id)  # type: ignore
 
     def _s_init_pob(self, col):
@@ -210,7 +212,7 @@ class Mesh(CollisionShape):
 
             col = p.createCollisionShape(  # type: ignore
                 shapeType=p.GEOM_MESH, fileName=self.filename, meshScale=self.scale,
-                physicsClientId=self.client_id # type: ignore
+                physicsClientId=self.client_id  # type: ignore
             )
 
             super()._s_init_pob(col)
@@ -278,7 +280,7 @@ class Cylinder(CollisionShape):
         if self.collision:
             col = p.createCollisionShape(  # type: ignore
                 shapeType=p.GEOM_CYLINDER, radius=self.radius, height=self.length,
-                physicsClientId=self.client_id # type: ignore
+                physicsClientId=self.client_id  # type: ignore
             )
 
             super()._s_init_pob(col)
@@ -337,7 +339,8 @@ class Sphere(CollisionShape):
 
     def _init_pob(self):
         if self.collision:
-            col = p.createCollisionShape(shapeType=p.GEOM_SPHERE, radius=self.radius, physicsClientId=self.client_id)  # type: ignore
+            col = p.createCollisionShape(shapeType=p.GEOM_SPHERE, radius=self.radius,
+                                         physicsClientId=self.client_id)  # type: ignore
 
             super()._s_init_pob(col)
         else:
@@ -388,8 +391,9 @@ class Cuboid(CollisionShape):
 
         if self.collision:
             col = p.createCollisionShape(  # type: ignore
-                shapeType=p.GEOM_BOX, halfExtents=np.array(self.scale) / 2, physicsClientId=self.client_id  # type: ignore
-            
+                shapeType=p.GEOM_BOX, halfExtents=np.array(self.scale) / 2, physicsClientId=self.client_id
+                # type: ignore
+
             )
 
             super()._s_init_pob(col)
